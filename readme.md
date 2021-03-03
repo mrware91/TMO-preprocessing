@@ -1,5 +1,5 @@
 # tmolw56 analysis
-## Contributors: Matt Ware, Taran Driver, Elio Champenois
+## Contributors: Matt Ware
 
 To contribute to this repository, please execute the following command in the cloned git folder immediately after cloning
 ```bash
