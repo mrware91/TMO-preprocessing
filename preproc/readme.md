@@ -61,6 +61,20 @@ Control the batch submission, calls preproc.py
 ### autopreproc.py
 Automates the batch submission, calls bsub.sh
 
+### slurmJob.sh
+Submits SLURM jobs. Try running first with psdebugq.
+
 ### preproc.py
 
+### input.py
+Specifies the command line input structure that is read in by preproc.py
 
+Try running,
+```bash
+python input.py --nodes=1 --directory=.
+```
+
+## Batch analysis info from LCLS
+Info on the available batch system and how to submit batch jobs can be found on the [LCLS confluence page](https://confluence.slac.stanford.edu/display/PCDS/Batch+System+Analysis+Jobs?src=sidebar).
+
+## SLURM
