@@ -14,7 +14,7 @@ exp = 'tmolv2918' #
 run_number = int(sys.argv[1])
 
 preprocessed_folder = '/cds/home/m/mrware/Workspace/Workspace/2021-02-tmolw56/out'
-filename = preprocessed_folder+'run%d_v0.h5' % run_number
+filename = preprocessed_folder+'%d.h5' % run_number
 
 if (os.path.isfile(filename) or os.path.isfile(filename.split('.')[0]+'_part0.h5')):
     raise ValueError('h5 files for run %d already exist! check folder: %s'%(run_number, preprocessed_folder))
