@@ -2,10 +2,11 @@ import numpy as np
 
 
 class analyses:
-    def __init__(self, analysis, totalEvents):
+    def __init__(self, analysis, totalEvents,printMode='verbose'):
         self.analysis = analysis
         self.totalEvents = totalEvents
         self.events = 0
+        self.printMode = printMode
         self.data = {}
         self.initialize()
         
@@ -58,7 +59,17 @@ class analyses:
         except KeyError as ke:
             allowedErrorStr = '\'%s\'' % key
             if allowedErrorStr == str(ke):
-                print(response)
+                self.cprint(response)
                 adict[key] = default
             else:
                 raise ke
+                
+    def cprint(self, aString):
+        if self.printMode in 'verbose':
+            print(aString)
+        elif self.printMode in 'quiet':
+            pass
+        else:
+            print('printMode is %s. Should be verbose or quiet. Defaulting to verbose.'%self.printMode)
+            self.printMode = 'verbose'
+            self.cprint(aString)
