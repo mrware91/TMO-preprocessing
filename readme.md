@@ -12,3 +12,9 @@ Routines for running preprocessing on data
 
 ## online
 Routines for running online analysis
+
+## xtc
+Jupyter scripts for analyzing raw xtc data
+
+## postproc
+Jupyter scripts for analyzing preprocessed H5 files generated from preproc.
