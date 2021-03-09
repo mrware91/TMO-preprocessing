@@ -10,6 +10,15 @@ Reads in the xtc files serially.
 Provides examples of how to setup detectors and determine how to access their data content.
 Shows some example analyses.
 
+### H5Writer_debug.ipynb
+Debugging version for writing H5 files.
+Useful to see what `data.py` does behind the scenes.
+
+### H5Writer_serial.ipynb
+Serial version of H5 writer.
+Runs at about 60 Hz.
+Useful for trialling new analyses.
+
 ### UV_diode_tester.ipynb
 Provides an example to test that the goose trigger is working.
 

@@ -22,14 +22,14 @@ while [ $# -gt 0 ]; do
     --queue=*)
       queue="${1#*=}"
       ;;
-    --queue=*)
-      queue="${1#*=}"
-      ;;
     --exp=*)
       exp="${1#*=}"
       ;;
     --run=*)
       run="${1#*=}"
+      ;;
+    --nevent=*)
+      nevent="${1#*=}"
       ;;
     *)
       printf "***************************\n"
@@ -47,6 +47,7 @@ echo Submitting to $queue
 echo Using python script $python
 echo Processing experiment $exp
 echo Analyzing run $run
+echo Processing nevents $nevent
 
 # Print directory generation dialog
 echo Checking if directory structure exists. If not, generating.
@@ -77,8 +78,8 @@ if [ ! -d "$newdir" ]; then
 fi
 
 # Submit the batch job with the correct inputs
-sbatch -p $queue -N $cores -n $cores \
+sbatch -p $queue --ntasks $cores --ntasks-per-node 16 \
          --output=$newdir/$run.out \
          --error=$newdir/$run.error \
          --wrap=\
-"mpirun python -u $python --cores=$cores --directory=$directory --run=$run --exp=$exp"
+"mpirun python -u $python --cores=$cores --directory=$newdir --run=$run --exp=$exp --nevent=$nevent"

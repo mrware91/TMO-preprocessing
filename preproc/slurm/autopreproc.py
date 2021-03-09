@@ -2,15 +2,10 @@ import subprocess
 import requests
 import time
 import os
+from cmdInput import *
 
-print("Start!")
-
-exp="tmolv2918"
-run = 185
-run_stop = 191
-
-sh_folder = "/cds/home/m/mrware/Workspace/Workspace/2021-02-tmolw56/"
-sh_file = "bsub.sh"
+if runStop == 1:
+    runStop = run
 
 def is_run_saved(run, exp=exp):
     try:
@@ -25,20 +20,18 @@ def is_run_saved(run, exp=exp):
     except: #if it doesn't exist it throws an error
         return False
     
-def submit_bjob(run, numcores=32, sh_file=sh_file, sh_folder=sh_folder):
-    
-    cmd = ["sh", sh_folder+sh_file, str(run), str(numcores)]
-    call = subprocess.run(cmd, stdout=subprocess.PIPE, text=True, cwd=sh_folder)
+def submit_bjob(exp, run, numcores=32,  nevent=100000, directory='.', queue='psfehq'):
+    cmd = ['./slurmJob.sh', '--cores=%d' % numcores, '--run=%d'%run, '--exp='+exp, '--nevent=%d' % nevent,'--directory='+directory, '--python=preproc.py', '--queue=%s' % queue]
+    call = subprocess.run(cmd, stdout=subprocess.PIPE, text=True)
     print(call.stdout)
     
 
-print("Now looking for run %d" % run, end='')
-while run <= run_stop:
-    if is_run_saved(run):
-#         print('run %i good!\n'%run, flush=True)
-        submit_bjob(run)
-        run += 1
-        print("Now looking for run %d" % run, end='', flush=True)
+print("Now looking for run %d" % runNumber, end='')
+while runNumber <= runStop:
+    if is_run_saved(runNumber):
+        submit_bjob(exp, runNumber, numcores=cores, nevent=nevents, directory=directory, queue=queue)
+        runNumber += 1
+        print("Now looking for run %d" % runNumber, end='', flush=True)
     else:
         print(".", end='', flush=True)
         time.sleep(10)
