@@ -5,3 +5,5 @@ jupyter nbconvert --ClearOutputPreprocessor.enabled=True --inplace postproc/*.ip
 jupyter nbconvert --ClearOutputPreprocessor.enabled=True --inplace preproc/*.ipynb
 jupyter nbconvert --ClearOutputPreprocessor.enabled=True --inplace xtc/*.ipynb
 jupyter nbconvert --ClearOutputPreprocessor.enabled=True --inplace *.ipynb
+
+git add .
