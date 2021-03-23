@@ -42,8 +42,11 @@ class analyses:
             function = self.analysis[key]['function']
             detectorKey = self.analysis[key]['detectorKey']
             shotData = detectors[detectorKey]['shotData']
-            if shotData is None:
+            if (shotData is None) & (self.analysis[key]['type'] is None):
                 self.dataTypesFound = False
+                continue
+            elif (shotData is None) & (self.analysis[key]['type'] is not None):
+                self.data[key][self.events,] = self.data[key][self.events,]*np.nan
                 continue
                 
             result = function(shotData)
@@ -77,6 +80,9 @@ class analyses:
             else:
                 raise ke
                 
+#     def cprint(self,aString):
+#         print(aString)
+                
     def cprint(self, aString):
         if self.printMode in 'verbose':
             print(aString)
@@ -91,7 +97,14 @@ class analyses:
         if self.dataTypesFound:
             outDict = {}
             for key in self.data:
-                outDict[key] = self.data[key][0]
+                try:
+                    outDict[key] = np.copy(self.data[key][0,:])
+                except IndexError as ie:
+                    if ('1-dimensional' in str(ie)):
+#                         print(f'dimension of {key} is {self.data[key].shape}')
+                        outDict[key] = np.copy(self.data[key][:])
+                    else:
+                        raise ie
             return outDict
         else:
             return None
