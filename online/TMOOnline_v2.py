@@ -17,7 +17,14 @@ def update(evt, detectors, analysis, plots, iread):
     for key in detectors.keys():
         detectors[key]['modified'] = False
         get = detectors[key]['get']
-        if evt % detector['gatherEveryNthShot'] == 0:
+        try:
+            retrieveData = (iread % detectors[key]['gatherEveryNthShot'] == 0)
+        except KeyError as ke:
+            if 'gatherEveryNthShot' in str(ke):
+                retrieveData = True
+            else:
+                raise ke
+        if retrieveData:
             detectors[key]['shotData'] = get(detectors[key]['det'])(evt)
             detectors[key]['modified'] = True
         else:
@@ -27,7 +34,7 @@ def update(evt, detectors, analysis, plots, iread):
     analysis.update(detectors)
     
     for key in plots.keys():
-        plotting.plotElement( iread, key, plots[key], detectors, analysis )
+        plotting.plotElement( iread, key, plots[key], detectors, analysis.data )
 
 def detectorSetup(run, detectors):
     pskeys = set([detectors[key]['pskey'] for key in detectors.keys()])
@@ -49,7 +56,7 @@ def detectorSetup(run, detectors):
 
 defaultLoopStyle = lambda iterator: loop.timeIt(iterator, printEverySec=10)
 
-def shmemReader(exp,run, detectors, analysisDict, nread=1000, loopStyle=defaultLoopStyle):
+def shmemReader(exp,run, detectors, analysisDict, plots, nread=1000, loopStyle=defaultLoopStyle):
     if (exp is None) & (run is None):
         ds = psana.DataSource(shmem='tmo')
     else:
@@ -65,10 +72,34 @@ def shmemReader(exp,run, detectors, analysisDict, nread=1000, loopStyle=defaultL
         
         iread = 0
         for nevt, evt in enumerate(loopStyle(run.events())): #loop over events
-            update(evt, detectors, userAnalysis, iread)
+            update(evt, detectors, userAnalysis, plots, iread)
             
             iread += 1
-            if iread >= nread:
-                break
                       
     return None
+
+
+if __name__ == "__main__":
+    print(sys.argv)
+    try:
+        exp=str(sys.argv[1])
+        run=int(sys.argv[2])
+        nevt=int(sys.argv[3])
+        runType='offline'
+    except IndexError as ie:
+        print(ie)
+        if sys.argv[1] == 'shmem':
+            nevt=int(sys.argv[2])
+            runType='shmem'
+        else:
+            print('incorrect input')
+            print('provide python TMOOnline.py exp run nevent or ...')
+            print('python TMOOnline.py shmem nevent')
+            exit
+            
+    if runType == 'shmem':
+        shmemReader(None,None, setup.detectors, setup.analysis, setup.plots, nread=nevt, loopStyle=defaultLoopStyle)
+    else:
+        shmemReader(exp,run, setup.detectors, setup.analysis, setup.plots, nread=nevt, loopStyle=defaultLoopStyle)
+        
+        

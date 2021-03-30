@@ -35,8 +35,8 @@ plots = {}
 plots['pulseEnergyVlabtime'] = {
     'type':'XY',
     'dataSource':'analysis',
-    'xfunc': lambda data: np.arange(data['pulseEnergy']['data'].size),
-    'yfunc': lambda data: data['pulseEnergy']['data'],
+    'xfunc': lambda data: np.arange(data['pulseEnergy'].size),
+    'yfunc': lambda data: data['pulseEnergy'],
     'xlabel': 'idx',
     'ylabel':'pulse energy (mJ)'
 }
@@ -45,5 +45,5 @@ plots['timetool'] = {
     'type':'Image',
     'dataSource':'detectors',
     'modifiedFunc': lambda data: data['tmo_atmopal']['modified'],
-    'imageFunc': lambda data: data['tmo_atmopal']['data']
+    'imageFunc': lambda data: data['tmo_atmopal']['shotData']
 }
