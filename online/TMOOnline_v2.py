@@ -1,40 +1,115 @@
 # Standard Python imports
+import time
 import psana
 import numpy as np
-import time
 import sys
 
 import os
+os.environ['PS_SRV_NODES']='1'
+ 
+from mpi4py import MPI
+comm = MPI.COMM_WORLD
+rank = comm.Get_rank()
+size = comm.Get_size()
+assert size>1, 'At least 2 MPI ranks required'
+
+
 import time
 
-import analyses
 import loop
 import setup_v2 as setup
 import plotting_v2 as plotting
+                
+class Plotter:
+    def __init__(self, numclients):
+        self.nupdate=0
+        self.data = None
+        self.numclients = numclients
+        self.t0 = time.time()
+        self.t1 = time.time()
+        self.lastPlotted = {}
+    def update(self,data):
+        placeAt = data['rank']-2
+        if self.data is None:
+            self.data={}
+            for key,val in data.items():
+                arr = np.copy(val)
+                dims = np.shape(arr)
+                self.data[key] = np.zeros((self.numclients,*dims))*np.nan
+                self.data[key][placeAt,] = arr
+        else:
+            self.nupdate+=1
+            # placeAt = self.nupdate % self.numclients
+            for key,val in data.items():
+                arr = np.copy(val)
+                self.data[key][placeAt,] = arr
+    def plot(self):
+        if time.time()-self.t1 < 0.1:
+            return
+        self.t1 = time.time()
+        
+        for key, val in setup.plots.items():
+            try:
+                plotEverySec = val['plotEveryNthSec']
+            except KeyError as ke:
+                plotEverySec = 0
+                
+            try:
+                t2 = self.lastPlotted[key]
+            except KeyError as ke:
+                t2 = time.time()
+                self.lastPlotted[key] = t2
+                
+            if time.time()-t2 < plotEverySec:
+                continue
+            self.lastPlotted[key] = time.time()
+            plotting.plotElement( self.nupdate, key, val, self.data )
+        
+        
+if rank == size-1:
+    masterPlotter = Plotter(size-3)
 
+def callback(data):
+    global masterPlotter
+    
+    # print(data['iread'],data['rank'],rank)
+    masterPlotter.update(data)
+    masterPlotter.plot()
 
-def update(evt, detectors, analysis, plots, iread):
+def update(evt, detectors, analysis, iread):
     for key in detectors.keys():
-        detectors[key]['modified'] = False
         get = detectors[key]['get']
         try:
             retrieveData = (iread % detectors[key]['gatherEveryNthShot'] == 0)
         except KeyError as ke:
             if 'gatherEveryNthShot' in str(ke):
                 retrieveData = True
+                print(f'User did not specify detectors[{key}][\'gatherEveryNthShot\'] defaulting to 1')
+                detectors[key]['gatherEveryNthShot'] = 1
             else:
                 raise ke
         if retrieveData:
             detectors[key]['shotData'] = get(detectors[key]['det'])(evt)
-            detectors[key]['modified'] = True
         else:
-            if 'shotData' not in detectors[key].keys():
-                detectors[key][shotData] = None
+            detectors[key]['shotData'] = None
+            
+        if detectors[key]['shotData'] is None:
+            detectors[key]['shotData'] = np.nan
+                
+    detData = {key: detectors[key]['shotData'] for key in detectors}
+    for key, item in analysis.items():
+        try:
+            updateAnalysis = (iread % item['updateEveryNthShot'] == 0)
+        except KeyError as ke:
+            if 'updateEveryNthShot' in str(ke):
+                updateAnalysis = True
+                print(f'User did not specify analysis[{key}][\'updateEveryNthShot\'] defaulting to 1')
+                analysis[key]['updateEveryNthShot'] = 1
+            else:
+                raise ke
         
-    analysis.update(detectors)
-    
-    for key in plots.keys():
-        plotting.plotElement( iread, key, plots[key], detectors, analysis.data )
+        if updateAnalysis:
+            item['data'] = item['update'](detData, item['data'])
 
 def detectorSetup(run, detectors):
     pskeys = set([detectors[key]['pskey'] for key in detectors.keys()])
@@ -54,27 +129,56 @@ def detectorSetup(run, detectors):
             detectors[key]['det'] = None
 
 
+def destination(evt):
+    # Note that run, step, and det can be accessed
+    # the same way as shown in filter_fn
+    n_bd_nodes = size - 3 # for mpirun -n 6, 3 ranks are reserved so there are 3 bd ranks left
+    dest = (evt.timestamp % n_bd_nodes) + 1
+    return dest
+
+
 defaultLoopStyle = lambda iterator: loop.timeIt(iterator, printEverySec=10)
 
-def shmemReader(exp,run, detectors, analysisDict, plots, nread=1000, loopStyle=defaultLoopStyle):
+def shmemReader(exp,run, detectors, analysisDict, plots, loopStyle=defaultLoopStyle):
+    psDetectors = list(set([el['pskey'] for el in detectors.values()]))
+    print(f'Using detectors ....{psDetectors}')
     if (exp is None) & (run is None):
-        ds = psana.DataSource(shmem='tmo')
+        ds = psana.DataSource(shmem='tmo',
+                              detectors=psDetectors, destination= destination, batch_size=1)#, batch_size=size-3)
     else:
-        ds=psana.DataSource(exp=exp, run=run) #psdm
-    
+        ds=psana.DataSource(exp=exp, run=run,
+                              detectors=psDetectors, destination= destination, batch_size=1)#, batch_size=size-3) #psdm
+                              
+    smd = ds.smalldata(callbacks=[callback], batch_size=1)
+
     ########################################################################
     # loop over runs
     ########################################################################
     for run in ds.runs():
         detectorSetup(run, detectors)
         
-        userAnalysis = analyses.analyses( analysisDict, nread )
+        # userAnalysis = analyses.analyses( analysisDict, nread )
         
         iread = 0
-        for nevt, evt in enumerate(loopStyle(run.events())): #loop over events
-            update(evt, detectors, userAnalysis, plots, iread)
+        # for nevt, evt in enumerate(loopStyle(run.events())): #loop over events
+        for nevt, evt in enumerate((run.events())): #loop over events
+            update(evt, detectors, analysisDict, iread)
             
+            detData = {key: np.copy(detectors[key]['shotData']) for key in detectors}
+            analysisData = {}
+            for key, val in analysisDict.items():
+                try:
+                    postNow = (iread % val['post2MasterEveryNthShot']==0) | (iread<10)
+                except KeyError as ke:
+                    postNow = True
+                if postNow:
+                    for subkey, subval in val['data'].items():
+                        analysisData[f"{key}_{subkey}"] = np.copy(subval)
+            # print(rank,iread)
+            smd.event(evt, rank=rank, iread=iread,**analysisData)
+            # callback({'iread':iread, **analysisData})
             iread += 1
+            # time.sleep(0.1)
                       
     return None
 
@@ -84,22 +188,23 @@ if __name__ == "__main__":
     try:
         exp=str(sys.argv[1])
         run=int(sys.argv[2])
-        nevt=int(sys.argv[3])
         runType='offline'
     except IndexError as ie:
         print(ie)
         if sys.argv[1] == 'shmem':
-            nevt=int(sys.argv[2])
             runType='shmem'
         else:
             print('incorrect input')
             print('provide python TMOOnline.py exp run nevent or ...')
             print('python TMOOnline.py shmem nevent')
             exit
-            
+    
+    # if rank==size-1:
+    #     masterPlotter(numClients)
+    # else:
     if runType == 'shmem':
-        shmemReader(None,None, setup.detectors, setup.analysis, setup.plots, nread=nevt, loopStyle=defaultLoopStyle)
+        shmemReader(None,None, setup.detectors, setup.analysis, setup.plots,  loopStyle=defaultLoopStyle)
     else:
-        shmemReader(exp,run, setup.detectors, setup.analysis, setup.plots, nread=nevt, loopStyle=defaultLoopStyle)
-        
-        
+        shmemReader(exp,run, setup.detectors, setup.analysis, setup.plots, loopStyle=defaultLoopStyle)
+    
+    MPI.Finalize()

@@ -1,15 +1,17 @@
 import numpy as np
 import psmon.plots
 import psmon.publish
+psmon.publish.init()
+psmon.publish.local=True
 
 def plotImage(nevt, plotName, plotTitle, im,aspect_ratio=1,**kwargs):
-    print('?')
+    # print('?')
     aplot = psmon.plots.Image(nevt, plotTitle, im, aspect_ratio=aspect_ratio)
     psmon.publish.send(plotName, aplot)
     return None
 
 def plotXY(nevt, plotName, x,y, plotTitle='', xlabel='x',ylabel='y',formats='-',**kwargs):
-    print('?')
+    # print('?')
     x=np.array(x).astype(float)
     y=np.array(y).astype(float)
     idx = (~np.isnan(x))&(~np.isnan(y))
@@ -28,24 +30,17 @@ def plotHist(nevt, plotName, x,y, plotTitle='',xlabel='x',ylabel='y',formats='-'
                                formats=formats,fills=fills)
     psmon.publish.send(plotName, aplot)
 
-def plotElement( nevent, name, plotDictionary, detectors, analysis ):
+def plotElement( nevent, name, plotDictionary, dataSource ):
     plotTitle = name
-    if plotDictionary['dataSource'] == 'detectors':
-        dataSource = detectors
-    else:
-        dataSource = analysis
         
     
     if plotDictionary['type'] == 'XY':
-        print(dataSource.keys())
+        # print(dataSource.keys())
         x = plotDictionary['xfunc'](dataSource)
         y = plotDictionary['yfunc'](dataSource)
         plotXY( nevent, name, x, y, plotTitle=name, **plotDictionary )
     elif plotDictionary['type'] == 'Image':
         im = plotDictionary['imageFunc'](dataSource)
-        modified = plotDictionary['modifiedFunc'](dataSource)
-        if not modified:
-            return
         plotImage( nevent, name, name, im, **plotDictionary )
         
     elif plotDictionary['type'] == 'Histogram':
