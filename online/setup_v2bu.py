@@ -1,12 +1,10 @@
-#psplot -s drp-neh-cmp007 pulseEnergy tofSS tofAvg tofHist numhits numhitsVxgmd numhitsVgmd ttfltpos ttfltposHist ttSSdiv ttAvgBG ttfltposfwhm ttfltposfwhmHist ttamplVgmd ttSS ttAvg pulseEnergyHist vls vlsSumVgmd vlsCoMVL3 vitaraDelay ttcompensated diodeSum diodeSumVttampl diodeAvg diodeSS
-
 import numpy as np
 from mpi4py import MPI
 comm = MPI.COMM_WORLD
 rank = comm.Get_rank()
 size = comm.Get_size()
 
-defaultNSAVE = int(3600/(size))
+defaultNSAVE = int(3600/(size-3))
 
 def goodIdx(arr):
     idxs = np.arange(arr.size)
@@ -699,7 +697,7 @@ def vls(dets, data, nsave= defaultNSAVE, NH=100, redfac=.99 ):
         
     return data
 
-#analysis['vls'] = {'update': vls,'data':None}
+analysis['vls'] = {'update': vls,'data':None}
 
 def xfuncVLS(data):
     return np.arange(data['vls_vls'][0,:].size)

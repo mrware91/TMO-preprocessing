@@ -20,61 +20,7 @@ import loop
 import setup_v2 as setup
 import plotting_v2 as plotting
                 
-class Plotter:
-    def __init__(self, numclients):
-        self.nupdate=0
-        self.data = None
-        self.numclients = numclients
-        self.t0 = time.time()
-        self.t1 = time.time()
-        self.lastPlotted = {}
-    def update(self,data):
-        placeAt = data['rank']-2
-        if self.data is None:
-            self.data={}
-            for key,val in data.items():
-                arr = np.copy(val)
-                dims = np.shape(arr)
-                self.data[key] = np.zeros((self.numclients,*dims))*np.nan
-                self.data[key][placeAt,] = arr
-        else:
-            self.nupdate+=1
-            # placeAt = self.nupdate % self.numclients
-            for key,val in data.items():
-                arr = np.copy(val)
-                self.data[key][placeAt,] = arr
-    def plot(self):
-        if time.time()-self.t1 < 0.1:
-            return
-        self.t1 = time.time()
-        
-        for key, val in setup.plots.items():
-            try:
-                plotEverySec = val['plotEveryNthSec']
-            except KeyError as ke:
-                plotEverySec = 0
-                
-            try:
-                t2 = self.lastPlotted[key]
-            except KeyError as ke:
-                t2 = time.time()
-                self.lastPlotted[key] = t2
-                
-            if time.time()-t2 < plotEverySec:
-                continue
-            self.lastPlotted[key] = time.time()
-            plotting.plotElement( self.nupdate, key, val, self.data )
-        
-        
-if rank == size-1:
-    masterPlotter = Plotter(size-3)
 
-def callback(data):
-    global masterPlotter
-    
-    # print(data['iread'],data['rank'],rank)
-    masterPlotter.update(data)
-    masterPlotter.plot()
 
 def update(evt, detectors, analysis, iread):
     for key in detectors.keys():
@@ -143,13 +89,15 @@ def shmemReader(exp,run, detectors, analysisDict, plots, loopStyle=defaultLoopSt
     psDetectors = list(set([el['pskey'] for el in detectors.values()]))
     print(f'Using detectors ....{psDetectors}')
     if (exp is None) & (run is None):
-        ds = psana.DataSource(shmem='tmo',
-                              detectors=psDetectors, destination= destination, batch_size=1)#, batch_size=size-3)
+        print('Starting in shmem ...')
+        ds = psana.DataSource(shmem='tmo')#,
+                            #   detectors=psDetectors, destination= destination, batch_size=1)#, batch_size=size-3)
     else:
+        print('Running on XTC ...')
         ds=psana.DataSource(exp=exp, run=run,
-                              detectors=psDetectors, destination= destination, batch_size=1)#, batch_size=size-3) #psdm
+                            detectors=psDetectors.append('epicsinfo'), destination= destination, batch_size=1)#, batch_size=size-3) #psdm
                               
-    smd = ds.smalldata(callbacks=[callback], batch_size=1)
+    smd = ds.smalldata(callbacks=[plotting.callback], batch_size=1)
 
     ########################################################################
     # loop over runs
@@ -172,8 +120,12 @@ def shmemReader(exp,run, detectors, analysisDict, plots, loopStyle=defaultLoopSt
                 except KeyError as ke:
                     postNow = True
                 if postNow:
-                    for subkey, subval in val['data'].items():
-                        analysisData[f"{key}_{subkey}"] = np.copy(subval)
+                    try:
+                        for subkey, subval in val['data'].items():
+                            analysisData[f"{key}_{subkey}"] = np.copy(subval)
+                    except AttributeError:
+                        print(f'Skipping because of {key}')
+                        continue
             # print(rank,iread)
             smd.event(evt, rank=rank, iread=iread,**analysisData)
             # callback({'iread':iread, **analysisData})
