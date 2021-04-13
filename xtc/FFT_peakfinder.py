@@ -1,3 +1,4 @@
+## Contributors: Thomas Wolf, Yusong Liu, and Matt Ware
 from math import log, ceil, floor
 import numpy as np
 

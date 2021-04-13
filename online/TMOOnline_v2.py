@@ -1,3 +1,4 @@
+# Contributors: Matt Ware
 # Standard Python imports
 import time
 import psana

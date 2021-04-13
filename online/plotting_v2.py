@@ -1,3 +1,4 @@
+# Contributors: Matt Ware
 import numpy as np
 import time
 import setup_v2 as setup

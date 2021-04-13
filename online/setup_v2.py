@@ -1,3 +1,4 @@
+# Contributors: Matt Ware
 #psplot -s drp-neh-cmp007 pulseEnergy tofSS tofAvg tofHist numhits numhitsVxgmd numhitsVgmd ttfltpos ttfltposHist ttSSdiv ttAvgBG ttfltposfwhm ttfltposfwhmHist ttamplVgmd ttSS ttAvg pulseEnergyHist vls vlsSumVgmd vlsCoMVL3 vitaraDelay ttcompensated diodeSum diodeSumVttampl diodeAvg diodeSS evrsHistogram
 
 import numpy as np
