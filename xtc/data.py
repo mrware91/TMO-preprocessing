@@ -240,7 +240,7 @@ def H5Writer(exp, runNumber, detectors, analysisDict, outputDir, ncores, nread=1
         print(rank,size)
         print('Generating final H5 ...')
         reformatH5( truetempout, out )
-    else:
+    elif (size==1):
         print('Generating final H5 ...')
         reformatH5(tempout, out)
         

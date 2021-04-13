@@ -57,9 +57,9 @@ class Plotter:
             self.lastPlotted[key] = time.time()
             try:
                 plotElement( self.nupdate, key, val, self.data )
-            except Exception as e:
-                print(f'Error occured for {key}')
-                raise e
+            except KeyError as ke:
+                print(f'Error occured for {key}, skipping')
+                # raise e
         
         
 ncalls=0

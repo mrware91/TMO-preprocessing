@@ -1,0 +1,608 @@
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "# Select the LCLS-II py3 kernel in the top right\n",
+    "# Import libraries"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 1,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "import numpy as np\n",
+    "import matplotlib.pyplot as plt\n",
+    "import psana as ps"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "# Specify experiment and run number. Then generate datasource"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 2,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "exp = 'tmolw5618'\n",
+    "run_number = 60\n",
+    "# exp = 'tmoc00118'\n",
+    "# run_number = 333\n",
+    "ds = ps.DataSource(exp=exp, run=run_number)\n",
+    "run = next(ds.runs())"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "# Specify the detectors and analyses to conduct shot-by-shot and let the TMOanalysis library handle the rest"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 3,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "detectors = {}\n",
+    "# Fast detectors\n",
+    "# detectors['sample']={'pskey':'timing', 'get':lambda det: det}\n",
+    "detectors['evrs'] = {'pskey':'timing', 'get':lambda det: det.raw.eventcodes}\n",
+    "detectors['vls']={'pskey':'andor', 'get':lambda det: det.raw.value}\n",
+    "detectors['gmd']={'pskey':'gmd', 'get':lambda det: det.raw.energy}\n",
+    "detectors['xgmd']={'pskey':'xgmd', 'get':lambda det: det.raw.energy}\n",
+    "detectors['hsd']={'pskey':'hsd', 'get':lambda det: det.raw.waveforms}\n",
+    "\n",
+    "# Timetool\n",
+    "detectors['tmo_atmopal']={'pskey':'tmo_atmopal', 'get':lambda det: det.raw.image}\n",
+    "detectors['ttfltpos']={'pskey':'tmo_atmopal', 'get':lambda det: det.ttfex.fltpos}\n",
+    "detectors['ttfltposfwhm']={'pskey':'tmo_atmopal', 'get':lambda det: det.ttfex.fltposfwhm}\n",
+    "detectors['ttampl']={'pskey':'tmo_atmopal', 'get':lambda det: det.ttfex.ampl}\n",
+    "\n",
+    "# Ebeam parameters\n",
+    "detectors['photonEnergy']={'pskey':'ebeam', 'get':lambda det: det.raw.ebeamPhotonEnergy}\n",
+    "detectors['ebeamCharge']={'pskey':'ebeam', 'get':lambda det: det.raw.ebeamCharge}\n",
+    "detectors['ebeamDumpCharge']={'pskey':'ebeam', 'get':lambda det: det.raw.ebeamDumpCharge}\n",
+    "detectors['ebeamEnergyBC1']={'pskey':'ebeam', 'get':lambda det: det.raw.ebeamEnergyBC1}\n",
+    "detectors['ebeamEnergyBC2']={'pskey':'ebeam', 'get':lambda det: det.raw.ebeamEnergyBC2}\n",
+    "detectors['ebeamL3Energy']={'pskey':'ebeam', 'get':lambda det: det.raw.ebeamL3Energy}\n",
+    "detectors['ebeamLTU250']={'pskey':'ebeam', 'get':lambda det: det.raw.ebeamLTU250}\n",
+    "detectors['ebeamLTU450']={'pskey':'ebeam', 'get':lambda det: det.raw.ebeamLTU450}\n",
+    "detectors['ebeamLTUAngY']={'pskey':'ebeam', 'get':lambda det: det.raw.ebeamLTUAngY}\n",
+    "detectors['ebeamLTUPosX']={'pskey':'ebeam', 'get':lambda det: det.raw.ebeamLTUPosX}\n",
+    "detectors['ebeamLTUPosY']={'pskey':'ebeam', 'get':lambda det: det.raw.ebeamLTUPosY}\n",
+    "detectors['ebeamLUTAngX']={'pskey':'ebeam', 'get':lambda det: det.raw.ebeamLUTAngX}\n",
+    "detectors['ebeamPkCurrBC1']={'pskey':'ebeam', 'get':lambda det: det.raw.ebeamPkCurrBC1}\n",
+    "detectors['ebeamPkCurrBC2']={'pskey':'ebeam', 'get':lambda det: det.raw.ebeamPkCurrBC2}\n",
+    "detectors['ebeamUndAngX']={'pskey':'ebeam', 'get':lambda det: det.raw.ebeamUndAngX}\n",
+    "detectors['ebeamUndAngY']={'pskey':'ebeam', 'get':lambda det: det.raw.ebeamUndAngY}\n",
+    "detectors['ebeamUndPosX']={'pskey':'ebeam', 'get':lambda det: det.raw.ebeamUndPosX}\n",
+    "detectors['ebeamUndPosY']={'pskey':'ebeam', 'get':lambda det: det.raw.ebeamUndPosY}\n",
+    "detectors['ebeamXTCAVAmpl']={'pskey':'ebeam', 'get':lambda det: det.raw.ebeamXTCAVAmpl}\n",
+    "detectors['ebeamXTCAVPhase']={'pskey':'ebeam', 'get':lambda det: det.raw.ebeamXTCAVPhase}\n",
+    "\n",
+    "\n",
+    "# Important Epics\n",
+    "detectors['vitaraDelay']={'pskey':'las_fs14_target_time', 'get':lambda det: det}"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 4,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "from FFT_peakfinder import FFTfind_fixed\n",
+    "# Analysis is of form {analysisKey: {'function': analysisFunction(), 'detectorKey': 'key', 'analyzeEvery':1}}\n",
+    "# Function element is optional. If not provided, raw data is returned.\n",
+    "analysis = {}\n",
+    "analysis['vitaraDelay'] = {'function':lambda x: x, 'detectorKey':'vitaraDelay'}\n",
+    "analysis['evrs'] = {'detectorKey':'evrs'}\n",
+    "analysis['vls1D'] = {'function': lambda x: x, 'detectorKey':'vls'}\n",
+    "analysis['pulseEnergy-gmd'] = {'detectorKey':'gmd'}\n",
+    "analysis['pulseEnergy-xgmd'] = {'detectorKey':'xgmd'}\n",
+    "analysis['photonEnergy'] = {'detectorKey':'photonEnergy'}\n",
+    "\n",
+    "analysis['ttfltpos']={'detectorKey':'ttfltpos'}\n",
+    "analysis['ttfltposfwhm']={'detectorKey':'ttfltposfwhm'}\n",
+    "analysis['ttampl']={'detectorKey':'ttampl'}\n",
+    "\n",
+    "\n",
+    "analysis['ebeamCharge']={'detectorKey':'ebeamCharge'}\n",
+    "analysis['ebeamDumpCharge']={'detectorKey':'ebeamDumpCharge'}\n",
+    "analysis['ebeamEnergyBC1']={'detectorKey':'ebeamEnergyBC1'}\n",
+    "analysis['ebeamEnergyBC2']={'detectorKey':'ebeamEnergyBC2'}\n",
+    "analysis['ebeamL3Energy']={'detectorKey':'ebeamL3Energy'}\n",
+    "analysis['ebeamLTU250']={'detectorKey':'ebeamLTU250'}\n",
+    "analysis['ebeamLTU450']={'detectorKey':'ebeamLTU450'}\n",
+    "analysis['ebeamLTUAngY']={'detectorKey':'ebeamLTUAngY'}\n",
+    "analysis['ebeamLTUPosX']={'detectorKey':'ebeamLTUPosX'}\n",
+    "analysis['ebeamLTUPosY']={'detectorKey':'ebeamLTUPosY'}\n",
+    "analysis['ebeamLUTAngX']={'detectorKey':'ebeamLUTAngX'}\n",
+    "analysis['ebeamPkCurrBC1']={'detectorKey':'ebeamPkCurrBC1'}\n",
+    "analysis['ebeamPkCurrBC2']={'detectorKey':'ebeamPkCurrBC2'}\n",
+    "analysis['ebeamUndAngX']={'detectorKey':'ebeamUndAngX'}\n",
+    "analysis['ebeamUndAngY']={'detectorKey':'ebeamUndAngY'}\n",
+    "analysis['ebeamUndPosX']={'detectorKey':'ebeamUndPosX'}\n",
+    "analysis['ebeamUndPosY']={'detectorKey':'ebeamUndPosY'}\n",
+    "analysis['ebeamXTCAVAmpl']={'detectorKey':'ebeamXTCAVAmpl'}\n",
+    "analysis['ebeamXTCAVPhase']={'detectorKey':'ebeamXTCAVPhase'}\n",
+    "\n",
+    "\n",
+    "def cfd(x, y, pixel_shift=int(2e0), threshold=7):\n",
+    "    # Simple Constant Fraction Discriminator for hit finding\n",
+    "#     pixel_shift = int(shift / np.diff(x).mean() / 2)\n",
+    "    # print(pixel_shift)\n",
+    "    y1, y2 = y[:-2*pixel_shift], y[2*pixel_shift:]\n",
+    "    x_, y_ = x[pixel_shift:-pixel_shift], y[pixel_shift:-pixel_shift]\n",
+    "    y3 = y1 - y2\n",
+    "#     peak_idx = np.where((y3[:-1]>0)&(y3[1:]<=0)&(y3[:-1]>threshold))[0]\n",
+    "    peak_idx = np.where((y3[:-1]>threshold)&(y3[1:]<=threshold))[0]\n",
+    "\n",
+    "#     times, amplitudes = x_[:-1][peak_idx], y_[:-1][peak_idx]\n",
+    "    times, amplitudes = x_[1:][peak_idx], y_[1:][peak_idx]\n",
+    "    if len(times)==0:\n",
+    "        return [], []\n",
+    "    else:\n",
+    "        return times, amplitudes\n",
+    "def fix_wf_baseline(hsd_in, bgfrom=500*64):\n",
+    "    hsd_out = np.copy(hsd_in)\n",
+    "    for i in range(4):\n",
+    "        hsd_out[i::4] -= hsd_out[bgfrom+i::4].mean()\n",
+    "    for i in (12, 13, 12+32, 12+32):\n",
+    "        hsd_out[i::64] -= hsd_out[bgfrom+i::64].mean()\n",
+    "    return hsd_out\n",
+    "\n",
+    "def cfdFixed(hsd,nmax=1000):\n",
+    "    x= hsd[0]['times']\n",
+    "    y= fix_wf_baseline(hsd[0][0].astype(float))\n",
+    "    timesF = np.zeros(nmax)*np.nan\n",
+    "    amplitudesF = np.zeros(nmax)*np.nan\n",
+    "    times,amplitudes = cfd(x,y)\n",
+    "    \n",
+    "    if len(times) > 0:\n",
+    "        timesF[:times.size] = times\n",
+    "        amplitudesF[:times.size] = times\n",
+    "    \n",
+    "    return timesF, amplitudesF\n",
+    "# FFTfind_fixed(hsd, nmax=1000)\n",
+    "analysis['mb-hitfinder-t'] = {'function': lambda x: cfdFixed(x)[0]*1e6, 'detectorKey':'hsd'}\n",
+    "analysis['mb-hitfinder-ampl'] = {'function': lambda x: cfdFixed(x)[1], 'detectorKey':'hsd'}\n",
+    "analysis['mb-FFT-hitfinder-t'] = {'function': lambda x: FFTfind_fixed(x)[0]*1e6, 'detectorKey':'hsd'}\n",
+    "analysis['mb-FFT-hitfinder-ampl'] = {'function': lambda x: FFTfind_fixed(x)[1], 'detectorKey':'hsd'}\n",
+    "\n",
+    "analysis['mb-time'] = {'function': lambda x: x[0]['times'].astype(float)*1e6, 'detectorKey':'hsd'}\n",
+    "analysis['mb-waveform'] = {'function': lambda x: fix_wf_baseline(x[0][0].astype(float)), 'detectorKey':'hsd'}\n",
+    "\n",
+    "\n",
+    "analysis['mb-time-subset'] = {'function': lambda x: x[0]['times'].astype(float)[:10000]*1e6, 'detectorKey':'hsd'}\n",
+    "analysis['mb-waveform-subset'] = {'function': lambda x: fix_wf_baseline(x[0][0].astype(float))[:10000], 'detectorKey':'hsd'}\n",
+    "\n",
+    "resample = lambda x, rebin_factor: x.reshape(-1, rebin_factor).mean(1)\n",
+    "analysis['mb-time-downsample'] = {'function': lambda x: resample(x[0]['times'],10), 'detectorKey':'hsd'}\n",
+    "analysis['mb-waveform-downsample'] = {'function': lambda x: resample(x[0][0],10), 'detectorKey':'hsd'}\n",
+    "analysis['diode-waveform-subset'] = {'function': lambda x: x[9][0].astype(float)[:5000], 'detectorKey':'hsd'}\n",
+    "analysis['diode-time-subset'] = {'function': lambda x: x[9]['times'].astype(float)[:5000], 'detectorKey':'hsd'}\n",
+    "analysis['diode-waveform-downsample'] = {'function': lambda x: resample(x[9][0],10), 'detectorKey':'hsd'}\n",
+    "analysis['diode-time-downsample'] = {'function': lambda x: resample(x[9]['times'],10), 'detectorKey':'hsd'}\n",
+    "\n",
+    "analysis['atm-proj1'] =  {'function': lambda x: np.sum(x[360:500,:],axis=0), 'detectorKey':'tmo_atmopal'}\n",
+    "analysis['atm-proj2'] =  {'function': lambda x: np.sum(x[0:240,:],axis=0), 'detectorKey':'tmo_atmopal'}\n",
+    "analysis['atm-proj3'] =  {'function': lambda x: np.sum(x[240:360,:],axis=0), 'detectorKey':'tmo_atmopal'}"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 5,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "vitaraDelay: No modulo provided. Will analyze every shot.\n",
+      "evrs: No analysis function provided. Defaulting to return raw data.\n",
+      "evrs: No modulo provided. Will analyze every shot.\n",
+      "vls1D: No modulo provided. Will analyze every shot.\n",
+      "pulseEnergy-gmd: No analysis function provided. Defaulting to return raw data.\n",
+      "pulseEnergy-gmd: No modulo provided. Will analyze every shot.\n",
+      "pulseEnergy-xgmd: No analysis function provided. Defaulting to return raw data.\n",
+      "pulseEnergy-xgmd: No modulo provided. Will analyze every shot.\n",
+      "photonEnergy: No analysis function provided. Defaulting to return raw data.\n",
+      "photonEnergy: No modulo provided. Will analyze every shot.\n",
+      "ttfltpos: No analysis function provided. Defaulting to return raw data.\n",
+      "ttfltpos: No modulo provided. Will analyze every shot.\n",
+      "ttfltposfwhm: No analysis function provided. Defaulting to return raw data.\n",
+      "ttfltposfwhm: No modulo provided. Will analyze every shot.\n",
+      "ttampl: No analysis function provided. Defaulting to return raw data.\n",
+      "ttampl: No modulo provided. Will analyze every shot.\n",
+      "ebeamCharge: No analysis function provided. Defaulting to return raw data.\n",
+      "ebeamCharge: No modulo provided. Will analyze every shot.\n",
+      "ebeamDumpCharge: No analysis function provided. Defaulting to return raw data.\n",
+      "ebeamDumpCharge: No modulo provided. Will analyze every shot.\n",
+      "ebeamEnergyBC1: No analysis function provided. Defaulting to return raw data.\n",
+      "ebeamEnergyBC1: No modulo provided. Will analyze every shot.\n",
+      "ebeamEnergyBC2: No analysis function provided. Defaulting to return raw data.\n",
+      "ebeamEnergyBC2: No modulo provided. Will analyze every shot.\n",
+      "ebeamL3Energy: No analysis function provided. Defaulting to return raw data.\n",
+      "ebeamL3Energy: No modulo provided. Will analyze every shot.\n",
+      "ebeamLTU250: No analysis function provided. Defaulting to return raw data.\n",
+      "ebeamLTU250: No modulo provided. Will analyze every shot.\n",
+      "ebeamLTU450: No analysis function provided. Defaulting to return raw data.\n",
+      "ebeamLTU450: No modulo provided. Will analyze every shot.\n",
+      "ebeamLTUAngY: No analysis function provided. Defaulting to return raw data.\n",
+      "ebeamLTUAngY: No modulo provided. Will analyze every shot.\n",
+      "ebeamLTUPosX: No analysis function provided. Defaulting to return raw data.\n",
+      "ebeamLTUPosX: No modulo provided. Will analyze every shot.\n",
+      "ebeamLTUPosY: No analysis function provided. Defaulting to return raw data.\n",
+      "ebeamLTUPosY: No modulo provided. Will analyze every shot.\n",
+      "ebeamLUTAngX: No analysis function provided. Defaulting to return raw data.\n",
+      "ebeamLUTAngX: No modulo provided. Will analyze every shot.\n",
+      "ebeamPkCurrBC1: No analysis function provided. Defaulting to return raw data.\n",
+      "ebeamPkCurrBC1: No modulo provided. Will analyze every shot.\n",
+      "ebeamPkCurrBC2: No analysis function provided. Defaulting to return raw data.\n",
+      "ebeamPkCurrBC2: No modulo provided. Will analyze every shot.\n",
+      "ebeamUndAngX: No analysis function provided. Defaulting to return raw data.\n",
+      "ebeamUndAngX: No modulo provided. Will analyze every shot.\n",
+      "ebeamUndAngY: No analysis function provided. Defaulting to return raw data.\n",
+      "ebeamUndAngY: No modulo provided. Will analyze every shot.\n",
+      "ebeamUndPosX: No analysis function provided. Defaulting to return raw data.\n",
+      "ebeamUndPosX: No modulo provided. Will analyze every shot.\n",
+      "ebeamUndPosY: No analysis function provided. Defaulting to return raw data.\n",
+      "ebeamUndPosY: No modulo provided. Will analyze every shot.\n",
+      "ebeamXTCAVAmpl: No analysis function provided. Defaulting to return raw data.\n",
+      "ebeamXTCAVAmpl: No modulo provided. Will analyze every shot.\n",
+      "ebeamXTCAVPhase: No analysis function provided. Defaulting to return raw data.\n",
+      "ebeamXTCAVPhase: No modulo provided. Will analyze every shot.\n",
+      "mb-hitfinder-t: No modulo provided. Will analyze every shot.\n",
+      "mb-hitfinder-ampl: No modulo provided. Will analyze every shot.\n",
+      "mb-FFT-hitfinder-t: No modulo provided. Will analyze every shot.\n",
+      "mb-FFT-hitfinder-ampl: No modulo provided. Will analyze every shot.\n",
+      "mb-time: No modulo provided. Will analyze every shot.\n",
+      "mb-waveform: No modulo provided. Will analyze every shot.\n",
+      "mb-time-subset: No modulo provided. Will analyze every shot.\n",
+      "mb-waveform-subset: No modulo provided. Will analyze every shot.\n",
+      "mb-time-downsample: No modulo provided. Will analyze every shot.\n",
+      "mb-waveform-downsample: No modulo provided. Will analyze every shot.\n",
+      "diode-waveform-subset: No modulo provided. Will analyze every shot.\n",
+      "diode-time-subset: No modulo provided. Will analyze every shot.\n",
+      "diode-waveform-downsample: No modulo provided. Will analyze every shot.\n",
+      "diode-time-downsample: No modulo provided. Will analyze every shot.\n",
+      "atm-proj1: No modulo provided. Will analyze every shot.\n",
+      "atm-proj2: No modulo provided. Will analyze every shot.\n",
+      "atm-proj3: No modulo provided. Will analyze every shot.\n",
+      "Skipping StaleFlags\n",
+      "Skipping StaleFlags\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "/cds/home/m/mrware/Workspace/2021-02-tmolw56/2021-02-preproc-git/xtc/FFT_peakfinder.py:128: RuntimeWarning: invalid value encountered in true_divide\n",
+      "  retF = np.square(np.sin(fdw)/fdw) # filter function\n"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "1.018748 sec passed, 4 iterations\n",
+      "Read events exceeds total expected. Resetting event count.\n"
+     ]
+    }
+   ],
+   "source": [
+    "import data\n",
+    "import loop\n",
+    "fastData, epicsData = data.XTCReader(exp=exp,\n",
+    "               run=run_number,\n",
+    "               detectors=detectors,\n",
+    "               analysisDict=analysis,\n",
+    "               nread=10,\n",
+    "               loopStyle=lambda itr: loop.timeIt(itr, printEverySec=1))   "
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "# Example plots and analyses\n",
+    "## Histogram of pulse energies"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "fastData['atm-proj1'].shape"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "plt.hist(fastData['pulseEnergy'] * 1e3, bins=20);\n",
+    "plt.xlabel(\"Pulse energy / uJ\");"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## TOF traces"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 9,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "/cds/sw/ds/ana/conda2/inst/envs/ps-4.2.0/lib/python3.7/site-packages/ipykernel/__main__.py:6: RuntimeWarning: Mean of empty slice.\n",
+      "/cds/sw/ds/ana/conda2/inst/envs/ps-4.2.0/lib/python3.7/site-packages/numpy/core/_methods.py:181: RuntimeWarning: invalid value encountered in true_divide\n",
+      "  ret, rcount, out=ret, casting='unsafe', subok=False)\n"
+     ]
+    },
+    {
+     "data": {
+      "text/plain": [
+       "Text(0.5, 0, 'ToF / us')"
+      ]
+     },
+     "execution_count": 9,
+     "metadata": {},
+     "output_type": "execute_result"
+    },
+    {
+     "data": {
+      "image/png": "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zpkzR9u2beuY9vjjj2thYaHLCLClpaXasmVLx+NWrVrp9u3bHcMWx8fHu9Vh2bJlqqp69OhRxyB8v//973XDhg26YMECt+VHjhxZ4XHtbd6oUaP0888/12nTpumiRYs8joqal5enFotFR40a5dgnvXr1cgyhXdktOztb165dq08//bRjmvNIteWPlQByz9wDlJV7sgpYhwj1ZMeOHfrVV1/pl19+6XLBjZ9++klLS0tVVfXYsWO6detWxzz7G3LYsGEu29i2bVuFdTh+/LjbvPLDIpe/VatWTRs3buw2ffjw4R6HCr7//vsdZV977bUKQHNzc12WERHNzs5WwDqkcF5eXoWBtGXLFse0l156yXH/p59+cnuOquoYK99+O3bsmA4dOlQfeughx7RBgwapqmpubq5euHBBs7Ky9MyZM173nbOioiL9+OOP9Z133lFV1ffff9/xhrcv/+mnn2pZWZnH18Pu66+/dryO586dc9merzf7dQuc67lx40aPy65Zs6bC+tiXs1gsOmbMGJc3vf3DQFX15MmTeuTIEcfj3Nxc/eGHH1zmDx482GUZb9t67733XKbbr2/Qpk0b/eKLLxzLnThxwuP6zvux/Ov09NNPa+/evb2uZw/5r7/+2u1aDqqqzzzzjL733nuODy17yHviHMTTp0/XjIwMPXr0qHbv3l337NnjmHf69GnNzs52qUv5kUlHjhzpVv6kSZP073//u9v0y5cvu10PYNq0aQpYP5QHDx6saWlpeuzYMT179qwePHjQrYzTp087pu/atUsbNGjg9ToLvorJkJ88eXLQZdl99NFHCkAfeughVVXNz8+vcMB/T6FoV76lX/7WsWNHvffeex2Pr7vuOgWs48Orqnbp0sVl+SeffNJRdv369RWAnjlzxjG/oKBACwoKHCGflJSkqqqXLl3yGvL28fK7d+9e6XNUtb7hdu3a5fGN72laRTZu3KjPPvtshcuUlZU5xlnfu3ev5ubm+lz+vn37HB/mqur1PzxvN0+tL2/j9Fd28RZP++bkyZN+PR9fWSwW/frrrz1+EG7fvt2xTW+vl/N0eyPg1ltvrXS7nkK+/NXOyrOH/PLlyytcbtOmTfr0009Xul276tWrKwAtKipyeZ2eeOKJSp9HRUpLSzUtLU0LCgqCKicYFYU8L+TtAxHX33T5+iWvp1M7ra+Hd3fccQey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\n",
+      "text/plain": [
+       "<Figure size 432x288 with 1 Axes>"
+      ]
+     },
+     "metadata": {
+      "needs_background": "light"
+     },
+     "output_type": "display_data"
+    }
+   ],
+   "source": [
+    "xray_off = fastData['evrs'][:,161]==1\n",
+    "xray_on = np.logical_not(xray_off)\n",
+    "\n",
+    "t = fastData['mb-time'][0,:]\n",
+    "plt.plot(t, fastData['mb-waveform'][xray_on].mean(0), 'k', label='xray on');\n",
+    "plt.plot(t, fastData['mb-waveform'][xray_off].mean(0), 'r', alpha=0.5, label='xray off');\n",
+    "plt.title(\"mb TOF traces\");\n",
+    "plt.legend()\n",
+    "plt.xlabel(\"ToF / us\")"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 18,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "import FFT_peakfinder\n",
+    "def FFTfind_fixed_debug(hsdt,hsdy, nmax=1000):\n",
+    "    \"\"\"\n",
+    "    Wrapper function for FFT peakfinder to fit into preprocessing.\n",
+    "    Arguments: \n",
+    "    hsd : TMO Digitizer data\n",
+    "    nmax: Max number of hits per shot (length of output array).\n",
+    "    \"\"\"\n",
+    "    x = hsdt\n",
+    "    y = hsdy\n",
+    "    timesF = np.zeros(nmax)*np.nan\n",
+    "    amplitudesF = np.zeros(nmax)*np.nan\n",
+    "    Peaklist = FFT_peakfinder.peakfinder(np.array([y]), 5, FFT_peakfinder.raw_resp, 7, 20)\n",
+    "    \n",
+    "    for i, peak in enumerate(Peaklist):\n",
+    "        if len(peak)!=0:\n",
+    "            amplitudesF[i] = 1\n",
+    "            timesF[i] = x[peak[1]]\n",
+    "    return timesF, amplitudesF"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 27,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "/cds/home/m/mrware/Workspace/2021-02-tmolw56/2021-02-preproc-git/xtc/FFT_peakfinder.py:128: RuntimeWarning: invalid value encountered in true_divide\n",
+      "  retF = np.square(np.sin(fdw)/fdw) # filter function\n"
+     ]
+    },
+    {
+     "data": {
+      "text/plain": [
+       "<matplotlib.collections.PathCollection at 0x7f21d01002d0>"
+      ]
+     },
+     "execution_count": 27,
+     "metadata": {},
+     "output_type": "execute_result"
+    },
+    {
+     "data": {
+      "image/png": "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\n",
+      "text/plain": [
+       "<Figure size 432x288 with 1 Axes>"
+      ]
+     },
+     "metadata": {
+      "needs_background": "light"
+     },
+     "output_type": "display_data"
+    }
+   ],
+   "source": [
+    "lookat = 2\n",
+    "timesF, amplitudesF = FFTfind_fixed_debug(t, fastData['mb-waveform'][xray_on][lookat ,:], nmax=1000)\n",
+    "plt.plot(t, fastData['mb-waveform'][xray_on][lookat ,:],'r', label='xray on',alpha=0.1);\n",
+    "notnan = ~np.isnan(timesF)\n",
+    "plt.scatter(timesF[notnan],amplitudesF[notnan])\n"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "# Print detectors available in this (exp, run)\n",
+    "Fast detectors. Make a measurement every shot"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "run.detnames"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "# Print epics detectors available\n",
+    "These are slow detectors. While they write a value for every event, they do not update at 120Hz."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "def getEpics(run):\n",
+    "    epicsNames = []\n",
+    "    for key in run.epicsinfo:\n",
+    "        epicsNames.append( key[0] )\n",
+    "    return epicsNames"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "getEpics(run)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "# Test data access for a detector\n",
+    "Use a test evt to see what the detector object returns\n",
+    "Many of the detectors call functions are undocumented. Try typing '<Detector Obj>.' then pressing tab to determine the call function. For example,\n",
+    "```python\n",
+    "gmd.[tab]\n",
+    "gmd.raw.[tab]\n",
+    "gmd.raw.energy\n",
+    "help(gmd.raw.energy)\n",
+    "```\n",
+    "shows you that the xray pulse energy may be read by `gmd.raw.energy(evt0)`"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "evt0=next( run.events() )"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "gmd = run.Detector('gmd') # xray pulse energy monitor"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "help(gmd.raw.energy)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "gmd.raw.energy(evt0)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "ebeam = run.Detector('ebeam')"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "ebeam.raw."
+   ]
+  }
+ ],
+ "metadata": {
+  "kernelspec": {
+   "display_name": "LCLS-II py3",
+   "language": "python",
+   "name": "ana2-current"
+  },
+  "language_info": {
+   "codemirror_mode": {
+    "name": "ipython",
+    "version": 3
+   },
+   "file_extension": ".py",
+   "mimetype": "text/x-python",
+   "name": "python",
+   "nbconvert_exporter": "python",
+   "pygments_lexer": "ipython3",
+   "version": "3.7.10"
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 2
+}

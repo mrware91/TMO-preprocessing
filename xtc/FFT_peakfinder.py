@@ -1,12 +1,13 @@
 from math import log, ceil, floor
 import numpy as np
 
-raw_resp = np.load('/cds/data/psdm/tmo/tmolw5618/results/raw_resp.npy')
+# raw_resp = np.load('/cds/data/psdm/tmo/tmolw5618/results/raw_resp.npy')
+raw_resp = np.load('/cds/home/m/mrware/Workspace/2021-02-tmolw56/2021-02-preproc-git/xtc/raw_resp.npy')
 
 def FFTfind_fixed(hsd, nmax=1000):
     """
     Wrapper function for FFT peakfinder to fit into preprocessing.
-    Arguments: 
+    Arguments:
     hsd : TMO Digitizer data
     nmax: Max number of hits per shot (length of output array).
     """
@@ -32,7 +33,7 @@ def fix_wf_baseline(hsd_in, bgfrom=500*64):
 
 def extract_electon_hits(dat):
     """
-    This function takes in a number of ToF traces and returns the response function created from the electron hits 
+    This function takes in a number of ToF traces and returns the response function created from the electron hits
     in the traces.
     Arguments:
     dat:          2D numpy array with ToF traces in first dimension
@@ -95,7 +96,7 @@ def extract_electon_hits(dat):
         for j in inds:
             sums[j] = np.sum(nppeaks[0:i-1,:].sum(axis=0)*np.roll(nppeaks[1,:],j))
         rollind = inds[sums.argmax()]
-        peaks_aligned[i,:] = np.roll(nppeaks[i,:],rollind)  
+        peaks_aligned[i,:] = np.roll(nppeaks[i,:],rollind)
     
     # Make response function:
     responseUN = np.zeros_like(peaks_aligned[0,:])
@@ -120,8 +121,8 @@ def BuildFilterFunction(npts,width,dt=0.5):
     npts is number of point in desired trace.
     width is the width of the filter function
     """
-    dt=2 # time bins are seperated by 1 ns, dt=1 mean that f is in GHz. 
-    df = 2*np.pi/(npts*dt) # Frequency spacing due to time sampling. 
+    dt=2 # time bins are seperated by 1 ns, dt=1 mean that f is in GHz.
+    df = 2*np.pi/(npts*dt) # Frequency spacing due to time sampling.
     f = np.concatenate((np.arange(npts/2),np.arange(-npts/2,0))) * df # frequency for FFT (dt=1 => GHz)
 
     fdw = f/width # f/w
@@ -191,7 +192,7 @@ def peakfind(s,t,deadt):
     """
     Hit finder function.
     s:  Signal
-    t:  Threshold for hitfinding. 
+    t:  Threshold for hitfinding.
     """
 
     Hi = []; # initializes peaks index vector
